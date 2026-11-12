@@ -1,0 +1,43 @@
+# QUIZ BATTLE - question bank
+#
+# One question per line. Fields are separated by the | character:
+#   question | option A | option B | option C | option D | correct letter | fun fact
+#
+# Rules for adding your own questions:
+#   - do NOT use the | character inside a field
+#   - use plain English letters (no special symbols)
+#   - the correct letter must be A, B, C or D
+# Lines starting with # are comments and are ignored.
+
+# ---------- Network programming basics (Lecture 1) ----------
+Which transport protocol is connection-oriented and guarantees delivery?|UDP|TCP|ICMP|ARP|B|TCP sets up a connection first and re-sends lost data. UDP just sends and hopes.
+Which protocol is connectionless and avoids the overhead of setting up a connection?|TCP|FTP|UDP|HTTP|C|UDP skips the handshake, so it is fast - but delivery and order are not guaranteed.
+What is the valid range of port numbers?|0 to 255|0 to 1023|1 to 100000|0 to 65535|D|Ports are 16-bit numbers, so there are 65536 of them (0 to 65535).
+A socket is the combination of...|IP address + port number|Username + password|MAC address + file name|Packet size + clock speed|A|The IP address finds the computer, the port number finds the application on it.
+Which number tells the TCP layer which application should receive the data?|Port number|Packet size|Thread ID|Clock speed|A|A port is the entry point into an application.
+In client-server communication, who starts the conversation?|The server|The router|The port|The client|D|The server waits and listens; the client connects to it.
+What is the default port of HTTP?|21|25|443|80|D|HTTPS uses 443, FTP uses 21 and SMTP uses 25.
+At which layer does the IP protocol work?|Application|Transport|Network|Physical|C|TCP and UDP are transport layer protocols; HTTP and FTP are application layer protocols.
+Which command lists the open ports on your computer?|ping|javac|mkdir|netstat|D|Try netstat -a -n in a command prompt (the lecture also uses -b with administrator rights).
+
+# ---------- Java sockets ----------
+Which Java class does a TCP server use to wait for incoming client connections?|DatagramSocket|PrintWriter|ServerSocket|Thread|C|new ServerSocket(port) listens on a port; accept() hands you a Socket for each client.
+What does serverSocket.accept() do?|Waits (blocks) until a client connects, then returns a Socket|Closes the server|Sends a datagram to every client|Creates a new thread automatically|A|Because accept() blocks, a server needs threads to keep serving other clients.
+In a socket program, what is a PrintWriter used for?|Sending text through the socket|Reading the keyboard|Opening a new port|Compiling the code|A|BufferedReader reads from the socket, PrintWriter writes to it.
+
+# ---------- UDP programming ----------
+Which Java class represents ONE UDP datagram (the packet itself)?|DatagramSocket|DatagramPacket|ServerSocket|PrintWriter|B|DatagramSocket is the door that sends and receives; DatagramPacket is the letter.
+Which statement about UDP datagrams is TRUE?|They always arrive in order|Delivery is always guaranteed|They may be lost, damaged or arrive in any order|A connection must be set up first|C|That is the price of speed: UDP gives no guarantee of arrival or of order.
+
+# ---------- Processes and threads ----------
+A program in execution is called a...|Process|Socket|Packet|Port|A|A process can contain one thread or many threads.
+What is a thread?|A program stored on the disk|The unit of execution within a process|A type of network cable|Another name for a CPU core|B|Several threads can live inside one process and share its memory.
+Which of these is NOT a state in the life cycle of a thread?|New|Runnable|Compiled|Terminated|C|The states are New, Runnable, Running, Blocked/Waiting and Terminated.
+Which method contains the code that a thread executes?|start()|main()|stop()|run()|D|You call start(), and Java then runs your run() method in the new thread.
+Which are the two ways to create a thread in Java?|Extend Socket or implement Packet|Use new Port() or new Process()|Extend Thread or implement Runnable|Only main() can create threads|C|In both cases you must write the run() method.
+Thread t1 is waiting for input. What can the CPU core do meanwhile?|Switch to another thread (t2)|Wait until t1 finishes|Shut down|Delete t1|A|This is concurrency: waiting time is used to run other threads.
+What does the number of CPU cores decide?|The size of the screen|How many operations can happen at the same time|The range of port numbers|The speed of the internet|B|The clock speed decides how many operations happen per second on each core.
+
+# ---------- About this very game ----------
+In Quiz Battle, which protocol helps a client FIND the server automatically?|FTP|UDP|SMTP|Telnet|B|The client broadcasts a small UDP datagram and the server answers with its address.
+Why does the Quiz Battle server use one thread per player?|To make the graphics faster|Because TCP requires it|So waiting for one player never blocks the others|To use less memory|C|readLine() blocks, so each player needs a thread of their own.

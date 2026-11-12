@@ -1,149 +1,321 @@
-package onlineQuizBattle;
 import java.io.*;
 import java.net.*;
 import java.util.*;
 
+/**
+ * QUIZ BATTLE - SERVER
+ * EC5205 Operating Systems & Network Programming project
+ *
+ * A QuizServer is ONE game room for 2 to 4 players. It can run
+ *   - inside the game window (the player who clicks "HOST A GAME"), or
+ *   - on its own in a console:  java QuizServer
+ *
+ * What the server does:
+ *   1. Answers UDP "is anybody there?" requests so clients can find it     (Discovery.java)
+ *   2. Accepts TCP connections - one thread per player                     (PlayerHandler.java)
+ *   3. Lobby: players choose a name + colour (no two players share a colour).
+ *      The game starts when the room is full, or when the first player clicks START.
+ *   4. Plays the quiz: sends each question, waits for the answers, then REVEALS every
+ *      player's answer at once and updates the scores.
+ *
+ * Threads used:
+ *   - game thread ........... runs the lobby wait, the questions, the timer and the scoring
+ *   - accept thread ......... waits for new players:  serverSocket.accept()
+ *   - one thread per player . reads that player's messages            (PlayerHandler)
+ *   - UDP thread ............ answers discovery requests              (Discovery)
+ */
 public class QuizServer {
-    static final int PORT = 5000;
-    static final int TIME_LIMIT = 15; // seconds per question
 
-    // {question, options, correct answer}
-    static final String[][] QUESTIONS = {
-        {"Which protocol gives reliable delivery?", "A) UDP  B) TCP  C) ICMP", "B"},
-        {"Default HTTP port?", "A) 21  B) 443  C) 80", "C"},
-        {"IP works at which layer?", "A) Network  B) Transport  C) Application", "A"}
-    };
+    static final int TCP_PORT = 5000;           // the game uses TCP (reliable, ordered)
+    static final int NUMBER_OF_COLOURS = 6;     // players choose one of 6 colours
 
-    // Shared data: every access goes through synchronized(lock)
-    static final Map<String, Handler> players = new LinkedHashMap<>();
-    static final Map<String, String> answerChoices = new HashMap<>();
-    static final Map<String, Long> answerTimes = new HashMap<>();
-    static final Object lock = new Object();
+    // Room settings
+    final int maxPlayers;
+    final int questionsPerGame;
+    final int secondsPerQuestion;
 
-    // One Handler (thread) per connected player
-    static class Handler implements Runnable {
-        Socket socket;
-        PrintWriter out;
-        String name;
-        int score = 0;
+    // ---- Shared data. Many threads use it, so ALWAYS access it inside synchronized (lock) ----
+    final Object lock = new Object();
+    final List<PlayerHandler> connections = new ArrayList<>();  // everybody connected (even before choosing a name)
+    final List<PlayerHandler> players = new ArrayList<>();      // joined players, in join order (the first one is the leader)
+    QuestionBank.Question currentQuestion = null;               // null = no question is open
+    int currentNumber = 0;                                      // 1, 2, 3 ...
+    boolean gameStarted = false;
+    boolean startRequested = false;                             // the leader clicked START
 
-        Handler(Socket socket) { this.socket = socket; }
+    private List<QuestionBank.Question> questions;
+    private ServerSocket serverSocket;
+    private DatagramSocket udpSocket;
+    private Thread gameThread;
+    private volatile boolean running = false;
 
-        void send(String msg) { if (out != null) out.println(msg); }
-
-        public void run() {
-            try (BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()))) {
-                out = new PrintWriter(socket.getOutputStream(), true);
-                String line;
-                while ((line = in.readLine()) != null) {
-                    String[] p = line.split("\\|");
-                    if (p[0].equals("JOIN") && p.length > 1) {
-                        synchronized (lock) {
-                            String n = p[1];
-                            int i = 2;
-                            while (players.containsKey(n)) n = p[1] + i++; // keep names unique
-                            name = n;
-                            players.put(name, this);
-                        }
-                        broadcast("INFO|" + name + " joined (" + playerCount() + " players)");
-                    } else if (p[0].equals("ANSWER") && name != null && p.length > 1) {
-                        synchronized (lock) {
-                            if (!answerChoices.containsKey(name)) { // only first answer counts
-                                answerChoices.put(name, p[1].toUpperCase());
-                                answerTimes.put(name, System.currentTimeMillis()); // server clock
-                            }
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                // player dropped, handled below
-            } finally {
-                if (name != null) {
-                    synchronized (lock) { if (players.get(name) == this) players.remove(name); }
-                    broadcast("INFO|" + name + " left");
-                }
-                try { socket.close(); } catch (IOException ignored) {}
-            }
-        }
+    public QuizServer(int maxPlayers, int questionsPerGame, int secondsPerQuestion) {
+        this.maxPlayers = Math.max(2, Math.min(4, maxPlayers));
+        this.questionsPerGame = Math.max(1, questionsPerGame);
+        this.secondsPerQuestion = Math.max(5, Math.min(60, secondsPerQuestion));
     }
 
-    static int playerCount() { synchronized (lock) { return players.size(); } }
+    // ------------------------------------------------------------------
+    // Start / stop
+    // ------------------------------------------------------------------
 
-    static void broadcast(String msg) {
-        List<Handler> copy;
-        synchronized (lock) { copy = new ArrayList<>(players.values()); }
-        for (Handler h : copy) h.send(msg); // send outside the lock so a slow player can't block others
-    }
+    /** Loads the questions, opens the network ports and starts the threads. */
+    public void start() throws IOException {
+        List<QuestionBank.Question> all = QuestionBank.load("questions.txt");
+        if (all.isEmpty()) throw new IOException("questions.txt has no valid questions");
+        Collections.shuffle(all);                                    // a different order every game
+        questions = new ArrayList<>(all.subList(0, Math.min(questionsPerGame, all.size())));
 
-    static String scoreboard() {
-        synchronized (lock) {
-            List<Handler> list = new ArrayList<>(players.values());
-            list.sort((a, b) -> b.score - a.score);
-            StringBuilder sb = new StringBuilder();
-            for (Handler h : list) {
-                if (sb.length() > 0) sb.append(",");
-                sb.append(h.name).append(":").append(h.score);
-            }
-            return sb.toString();
-        }
-    }
+        serverSocket = new ServerSocket(TCP_PORT);                   // TCP: the game itself (BindException if busy)
+        udpSocket = Discovery.startResponder();                      // UDP: lets clients find us
+        running = true;
 
-    public static void main(String[] args) throws Exception {
-        ServerSocket server = new ServerSocket(PORT);
-
-        // Accept loop runs in its own thread so main can run the game
-        Thread acceptThread = new Thread(() -> {
-            while (true) {
-                try {
-                    Socket s = server.accept();
-                    new Thread(new Handler(s)).start();
-                } catch (IOException e) { break; }
-            }
-        });
+        Thread acceptThread = new Thread(this::acceptLoop);
         acceptThread.setDaemon(true);
         acceptThread.start();
 
-        System.out.println("Server running on port " + PORT);
-        System.out.println("Press Enter when all players have joined...");
-        new BufferedReader(new InputStreamReader(System.in)).readLine();
+        gameThread = new Thread(this::runGame);
+        gameThread.start();
+    }
 
-        for (String[] q : QUESTIONS) {
-            synchronized (lock) { answerChoices.clear(); answerTimes.clear(); }
-            long start = System.currentTimeMillis();
-            broadcast("QUESTION|" + q[0] + "|" + q[1] + "|" + TIME_LIMIT);
+    /** Waits until the game is over (used by the console version). */
+    public void waitForEnd() throws InterruptedException {
+        if (gameThread != null) gameThread.join();
+    }
 
-            // wait until timer ends OR everyone has answered
-            while (System.currentTimeMillis() - start < TIME_LIMIT * 1000L) {
-                synchronized (lock) {
-                    if (!players.isEmpty() && answerChoices.size() >= players.size()) break;
+    /** Closes everything. */
+    public void stop() {
+        running = false;
+        try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) { }
+        if (udpSocket != null) udpSocket.close();
+        List<PlayerHandler> copy;
+        synchronized (lock) { copy = new ArrayList<>(connections); }
+        for (PlayerHandler h : copy) h.close();
+        if (gameThread != null) gameThread.interrupt();
+    }
+
+    // ------------------------------------------------------------------
+    // The accept thread: waits for new connections and starts a thread for each one.
+    // (Lecture: ServerSocket + accept(), but with a thread so we never stop listening)
+    // ------------------------------------------------------------------
+    private void acceptLoop() {
+        while (running) {
+            try {
+                Socket socket = serverSocket.accept();               // blocks until somebody connects
+                PlayerHandler handler = new PlayerHandler(this, socket);
+                synchronized (lock) { connections.add(handler); }
+                new Thread(handler).start();                         // one thread per connection
+                handler.send(roomMessage());                         // so the newcomer sees which colours are taken
+            } catch (IOException e) {
+                if (running) System.out.println("Connection problem: " + e.getMessage());
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The game thread: lobby -> countdown -> questions -> game over
+    // ------------------------------------------------------------------
+    private void runGame() {
+        try {
+            // ---- 1. Lobby: wait until the room is full (or the leader clicks START) ----
+            while (running && !readyToStart()) Thread.sleep(200);
+            if (!running) return;
+            Thread.sleep(800);                                       // let the last player see themselves sit down
+            synchronized (lock) { gameStarted = true; }
+            broadcast(roomMessage());
+            broadcast("STARTING|3");
+            System.out.println("\nThe battle begins!");
+            Thread.sleep(3800);                                      // the clients show 3 - 2 - 1 - GO!
+
+            // ---- 2. The questions ----
+            for (int i = 0; i < questions.size() && running; i++) {
+                if (connectedPlayers() == 0) {
+                    System.out.println("Everybody left - ending the game.");
+                    break;
                 }
-                Thread.sleep(100);
+                playQuestion(i + 1, questions.get(i));
             }
 
-            // scoring: 100 for correct + up to 50 speed bonus
-            synchronized (lock) {
-                for (Map.Entry<String, String> e : answerChoices.entrySet()) {
-                    Handler h = players.get(e.getKey());
-                    if (h != null && e.getValue().equals(q[2])) {
-                        double used = (answerTimes.get(e.getKey()) - start) / 1000.0;
-                        int bonus = (int) (50 * Math.max(0, TIME_LIMIT - used) / TIME_LIMIT);
-                        h.score += 100 + bonus;
+            // ---- 3. Game over: send the final ranking ----
+            broadcast(roomMessage());
+            broadcast("GAMEOVER|" + ranking());
+            System.out.println("\nGAME OVER!  Ranking: " + ranking());
+            Thread.sleep(3000);                                      // give the message time to arrive
+        } catch (InterruptedException e) {
+            // the server was stopped
+        } finally {
+            stop();
+        }
+    }
+
+    /** The game starts when the room is full, or when the leader clicked START (and 2+ players joined). */
+    private boolean readyToStart() {
+        synchronized (lock) {
+            return players.size() >= 2 && (players.size() >= maxPlayers || startRequested);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // One question: send it, wait for the answers, score, REVEAL everybody's answer.
+    // ------------------------------------------------------------------
+    private void playQuestion(int number, QuestionBank.Question q) throws InterruptedException {
+        long start = System.currentTimeMillis();
+        List<PlayerHandler> round;                       // the players taking part in this question
+
+        synchronized (lock) {
+            round = new ArrayList<>(players);
+            for (PlayerHandler p : round) p.answer = null;   // everybody starts without an answer
+            currentQuestion = q;                             // the question is now OPEN
+            currentNumber = number;
+        }
+
+        System.out.println("\nQuestion " + number + "/" + questions.size() + ": " + q.text);
+        broadcast("QUESTION|" + number + "|" + questions.size() + "|" + secondsPerQuestion + "|" + q.text
+                + "|" + q.options[0] + "|" + q.options[1] + "|" + q.options[2] + "|" + q.options[3]);
+
+        // Wait until time is up OR everybody has answered (checks 10 times per second)
+        while (running && System.currentTimeMillis() - start < secondsPerQuestion * 1000L
+                && !everyoneAnswered(round)) {
+            Thread.sleep(100);
+        }
+
+        // Time is up: CLOSE the question (late answers are ignored) and score everybody
+        StringBuilder reveal = new StringBuilder();
+        synchronized (lock) {
+            currentQuestion = null;
+            for (PlayerHandler p : round) {
+                String letter = (p.answer == null) ? "-" : p.answer;
+                int points = p.scoreRound(q, start, secondsPerQuestion);
+                if (reveal.length() > 0) reveal.append(",");
+                reveal.append(p.name).append(":").append(letter).append(":").append(points).append(":").append(p.streak);
+            }
+        }
+
+        // Everybody's answer is revealed at the same moment: name:letter:points:streak
+        broadcast("REVEAL|" + q.answer + "|" + q.note + "|" + reveal);
+        broadcast(roomMessage());                        // the new total scores
+        System.out.println("Answers: " + reveal);
+        Thread.sleep(6500);                              // time to enjoy the reveal animation
+    }
+
+    /** True when every connected player in this round has answered. */
+    private boolean everyoneAnswered(List<PlayerHandler> round) {
+        synchronized (lock) {
+            for (PlayerHandler p : round) {
+                if (p.connected && p.answer == null) return false;
+            }
+            return true;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /** Sends a message to EVERYBODY connected (players who are still choosing their colour, too). */
+    void broadcast(String message) {
+        List<PlayerHandler> copy;
+        synchronized (lock) { copy = new ArrayList<>(connections); }
+        for (PlayerHandler h : copy) h.send(message);    // send OUTSIDE the lock so one slow player cannot block the rest
+    }
+
+    /**
+     * The state of the room, in one line:  ROOM|maxPlayers|started|name:colour:score:connected,...
+     * Clients redraw the lobby / scoreboard from this message.
+     */
+    String roomMessage() {
+        synchronized (lock) {
+            StringBuilder list = new StringBuilder();
+            for (PlayerHandler p : players) {
+                if (list.length() > 0) list.append(",");
+                list.append(p.name).append(":").append(p.colourIndex).append(":")
+                    .append(p.score).append(":").append(p.connected ? 1 : 0);
+            }
+            return "ROOM|" + maxPlayers + "|" + (gameStarted ? 1 : 0) + "|" + list;
+        }
+    }
+
+    int connectedPlayers() {
+        synchronized (lock) {
+            int count = 0;
+            for (PlayerHandler p : players) if (p.connected) count++;
+            return count;
+        }
+    }
+
+    /** Player names from best to worst score. */
+    String ranking() {
+        synchronized (lock) {
+            List<PlayerHandler> sorted = new ArrayList<>(players);
+            sorted.sort((a, b) -> b.score - a.score);        // the sort is stable: ties keep the join order
+            StringBuilder text = new StringBuilder();
+            for (PlayerHandler p : sorted) {
+                if (text.length() > 0) text.append(",");
+                text.append(p.name);
+            }
+            return text.toString();
+        }
+    }
+
+    /** This computer's network addresses (shown so friends can type one if auto-discovery fails). */
+    static List<String> localAddresses() {
+        List<String> result = new ArrayList<>();
+        try {
+            for (NetworkInterface card : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InetAddress address : Collections.list(card.getInetAddresses())) {
+                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                        result.add(address.getHostAddress());
                     }
                 }
             }
-            broadcast("SCORES|" + scoreboard());
-            Thread.sleep(2000);
+        } catch (SocketException e) {
+            // no network cards - return an empty list
+        }
+        return result;
+    }
+
+    // ------------------------------------------------------------------
+    // Console version:  java QuizServer
+    // ------------------------------------------------------------------
+    public static void main(String[] args) throws Exception {
+        BufferedReader keyboard = new BufferedReader(new InputStreamReader(System.in));
+
+        System.out.println("==================================================");
+        System.out.println("   QUIZ BATTLE  -  SERVER");
+        System.out.println("==================================================");
+        int players = askNumber(keyboard, "Number of players (2-4)", 2, 2, 4);
+        int questions = askNumber(keyboard, "Questions per game", 10, 1, 50);
+        int seconds = askNumber(keyboard, "Seconds per question", 15, 5, 60);
+
+        QuizServer server = new QuizServer(players, questions, seconds);
+        try {
+            server.start();
+        } catch (BindException e) {
+            System.out.println("Port " + TCP_PORT + " is already in use. Is another server running?");
+            return;
+        } catch (IOException e) {
+            System.out.println("Could not start: " + e.getMessage());
+            return;
         }
 
-        String winner = "nobody";
-        synchronized (lock) {
-            int best = -1;
-            for (Handler h : players.values())
-                if (h.score > best) { best = h.score; winner = h.name; }
+        System.out.println("\nServer is running for " + players + " players. Players can join using one of these addresses");
+        System.out.println("(clients on the same network also find the server automatically):");
+        for (String address : localAddresses()) System.out.println("   " + address + "   (port " + TCP_PORT + ")");
+        System.out.println("\nThe game starts when all " + players + " seats are taken (or the first player clicks START).");
+        server.waitForEnd();
+    }
+
+    /** Asks for a number. Pressing Enter (or typing nonsense) gives the default. */
+    static int askNumber(BufferedReader keyboard, String question, int defaultValue, int min, int max)
+            throws IOException {
+        System.out.print(question + " [" + defaultValue + "]: ");
+        String line = keyboard.readLine();
+        if (line == null || line.trim().isEmpty()) return defaultValue;
+        try {
+            int value = Integer.parseInt(line.trim());
+            return Math.max(min, Math.min(max, value));   // keep it inside the allowed range
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
-        broadcast("WINNER|" + winner);
-        Thread.sleep(500);
-        System.exit(0);
     }
 }
