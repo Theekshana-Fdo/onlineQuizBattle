@@ -25,6 +25,10 @@ the others join.
 
 ## How to play
 
+Click **HOW TO PLAY** in the top-right corner of the welcome page for an in-app
+guide to hosting, joining, controls, the lifeline and scoring. Scroll to read the
+guide and close it with **OK** or **Esc**; your menu selections are kept.
+
 | Action | What happens |
 |---|---|
 | Click an answer card, or press `A` `B` `C` `D` (or `1` `2` `3` `4`) | You lock in your answer. Your first pick counts. Nobody sees WHAT you picked - only that you picked. |
@@ -91,6 +95,7 @@ Time is measured on the server's clock, so nobody can fake a fast answer.
 |---|---|
 | `QuizClient.java` | the game window; connects to the server; can start a server inside itself (hosting) |
 | `WelcomeScreen.java` | welcome page: host / join, number of players, name, colour picker |
+| `HowToPlay.java` | read-only, scrollable playing guide opened from the welcome page |
 | `ArenaScreen.java` | the stadium: players, question, answer cards, reveal animations, podium |
 | `Ui.java`, `Screen.java` | drawing helpers (colours, glass panels, spaced text, buttons, easing) and the base class of a page |
 | `GameConnection.java` | the client's TCP link and its listener thread |

@@ -37,6 +37,7 @@ public class WelcomeScreen extends Screen {
     long errorTime = 0;
 
     // ---- widgets ----
+    Ui.Button helpButton = new Ui.Button(880, 18, 200, 38, "HOW TO PLAY", Ui.COLORS[1]);
     static final int[] PLAYER_CHOICES = { 2, 3, 4 };
     static final int[] QUESTION_CHOICES = { 5, 10, 15 };
     Ui.Button hostTab = new Ui.Button(325, 172, 220, 52, "HOST A GAME", Ui.COLORS[1]);
@@ -69,6 +70,7 @@ public class WelcomeScreen extends Screen {
     void paint(Graphics2D g, long now) {
         Ui.background(g, now);
         drawTitle(g, now);
+        helpButton.paint(g, now);
 
         hostTab.enabled = (mode == HOST);
         joinTab.enabled = (mode == JOIN);
@@ -238,6 +240,7 @@ public class WelcomeScreen extends Screen {
     // ------------------------------------------------------------------
     @Override
     void mouseMoved(double x, double y) {
+        helpButton.hover = helpButton.contains(x, y);
         hostTab.hover = hostTab.contains(x, y);
         joinTab.hover = joinTab.contains(x, y);
         mainButton.hover = mainButton.contains(x, y);
@@ -250,6 +253,7 @@ public class WelcomeScreen extends Screen {
 
     @Override
     void mousePressed(double x, double y) {
+        if (helpButton.contains(x, y)) { HowToPlay.show(app); return; }
         if (hostTab.contains(x, y)) { setMode(HOST); return; }
         if (joinTab.contains(x, y)) { setMode(JOIN); return; }
         if (busy) return;
