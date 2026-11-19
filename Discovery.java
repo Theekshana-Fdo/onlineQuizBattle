@@ -8,7 +8,7 @@ import java.net.*;
  * Why UDP here?
  *   A new client does not know the server's IP address yet, so it cannot open a TCP
  *   connection. Instead it shouts ONE small datagram to the whole network (a "broadcast"):
- *          "QUIZ_DISCOVER"     -> "is anybody hosting a quiz?"
+ *          "QUIZ_DISCOVER"     -> "is a quiz server running?"
  *   The server listens on UDP port 5001 and replies with:
  *          "QUIZ_SERVER"       -> "yes, I am here!"
  *   The reply arrives FROM the server's own IP address - exactly what the client needs.

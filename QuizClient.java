@@ -1,7 +1,5 @@
 import java.awt.*;
 import java.awt.event.*;
-import java.io.IOException;
-import java.net.BindException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.*;
@@ -9,13 +7,14 @@ import javax.swing.*;
 /**
  * QuizClient - the game window. Start this class to play:   java -cp out QuizClient
  *
- * It does three jobs:
+ * It does two jobs:
  *   1. It is the window (a JPanel inside a JFrame) that draws the current Screen 60 times per second.
  *   2. It owns the network connection and passes every server message to the right screen.
- *   3. It can also HOST a game: "Create arena" starts a QuizServer inside this program (so a player
- *      does not need a separate server window) and then connects to it like every other player.
  *
- * Two screens exist: WelcomeScreen (menu, colours, host/join) and ArenaScreen (the stadium).
+ * The client can only JOIN an arena. The arena (number of players, questions ...) is created
+ * by the server: start_server.bat / QuizServer.
+ *
+ * Two screens exist: WelcomeScreen (find the arena, pick name and colour) and ArenaScreen (the stadium).
  */
 public class QuizClient extends JPanel implements GameConnection.Listener {
 
@@ -32,22 +31,17 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
     static class Room {
         int max = 4;
         boolean started = false;
-        List<PlayerInfo> players = new ArrayList<>();      // in join order - the first one is the host
+        List<PlayerInfo> players = new ArrayList<>();      // in join order - the first one is the leader
     }
-
-    static final int SECONDS_PER_QUESTION = 15;
 
     // ------------------------------------------------------------------
     // State
     // ------------------------------------------------------------------
-    QuizServer server = null;                       // not null while WE host the game
-    private GameConnection connection = null;       // our link to the server (ours or somebody else's)
+    private GameConnection connection = null;       // our link to the server
     private final WelcomeScreen welcome = new WelcomeScreen(this);
     private ArenaScreen arena = null;               // exists from the moment we have joined
     private Screen current = welcome;
     private Room lastRoom = new Room();
-    private String pendingName = null;              // the host joins its own game as soon as it is connected
-    private int pendingColor = 0;
     private int searchId = 0;                       // numbers the UDP searches, so an old search is ignored
 
     // where the 1100 x 700 canvas sits inside the window (it is scaled to fit)
@@ -80,6 +74,8 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
 
         // the animation clock: repaint about 60 times per second
         new javax.swing.Timer(16, e -> repaint()).start();
+
+        welcome.reset();                            // start looking for the server right away
     }
 
     // ------------------------------------------------------------------
@@ -125,7 +121,7 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
         thread.start();
     }
 
-    /** Opens a TCP connection to the host. (We join the room later, when the player presses the button.) */
+    /** Opens a TCP connection to the server. (We join the room later, when the player presses the button.) */
     void connectTo(String ip) {
         closeConnection();
         connection = new GameConnection(ip, this);
@@ -135,27 +131,6 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
         searchId++;                                                   // cancels a search that is still running
         if (connection != null) connection.close();
         connection = null;
-    }
-
-    /** CREATE ARENA: start our own server, then connect to it like any other player. */
-    void hostGame(String name, int color, int players, int questions) {
-        stopServer();
-        closeConnection();
-        try {
-            server = new QuizServer(players, questions, SECONDS_PER_QUESTION);
-            server.start();
-        } catch (BindException e) {                                   // somebody else already uses port 5000
-            server = null;
-            welcome.onJoinFailed("Port " + QuizServer.TCP_PORT + " is busy - another quiz server is already running.");
-            return;
-        } catch (IOException e) {
-            server = null;
-            welcome.onJoinFailed("Could not start the arena: " + e.getMessage());
-            return;
-        }
-        pendingName = name;                                           // JOIN is sent in onConnected()
-        pendingColor = color;
-        connection = new GameConnection("127.0.0.1", this);
     }
 
     /** JOIN ARENA: tell the server our name and colour. */
@@ -169,17 +144,9 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
 
     /** Leaves the stadium and shows the welcome page again. */
     void backToMenu() {
-        closeConnection();
-        stopServer();
         arena = null;
-        pendingName = null;
-        welcome.reset();
+        welcome.reset();                            // closes the old connection and searches for the server again
         current = welcome;
-    }
-
-    private void stopServer() {
-        if (server != null) server.stop();
-        server = null;
     }
 
     // ------------------------------------------------------------------
@@ -188,10 +155,6 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
     @Override
     public void onConnected() {
         welcome.onConnected();
-        if (pendingName != null) {                                    // we are the host: sit down in our own arena
-            joinRoom(pendingName, pendingColor);
-            pendingName = null;
-        }
     }
 
     @Override
@@ -222,10 +185,8 @@ public class QuizClient extends JPanel implements GameConnection.Listener {
     public void onDisconnected(String reason) {
         if (arena != null && arena.phase == ArenaScreen.PODIUM) return;   // the server closes after the game - that is normal
         boolean inGame = (arena != null);
-        stopServer();
         connection = null;
         arena = null;
-        pendingName = null;
         current = welcome;
         if (inGame) {                                                 // we were in the stadium: back to the menu with a message
             welcome.reset();

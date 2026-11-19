@@ -2,41 +2,40 @@ import java.awt.*;
 import java.awt.geom.*;
 
 /**
- * WelcomeScreen - the first page of the game.
+ * WelcomeScreen - the first page of the game. Players can only JOIN here: the arena itself
+ * (number of players, number of questions) is created by the server (start_server.bat).
  *
- *   HOST A GAME : choose how many players (2-4) and how many questions, then create the arena.
- *                 Your computer becomes the server (a QuizServer runs inside this window).
- *   JOIN A GAME : the program searches the network for a host with UDP (Discovery), connects
- *                 with TCP, and shows which colours are already taken.
- *
- * In both cases you type a name and pick a colour. A colour that another player already took
- * is crossed out - and the SERVER makes the final decision, so two players can never get the same colour.
+ * What the page does:
+ *   1. It searches the network for the server with a UDP broadcast (Discovery) - again and again,
+ *      so it is fine to open the game BEFORE the server is running. The arena is found as soon as it opens.
+ *   2. When the server answers, it connects with TCP and shows who already sits in the arena.
+ *   3. The player types a name and picks a colour. A colour that another player already took is crossed out -
+ *      and the SERVER makes the final decision, so two players can never get the same colour.
+ *   4. If the search finds nothing (some networks block it), the player can type the server's IP address.
  */
 public class WelcomeScreen extends Screen {
 
-    static final int HOST = 0, JOIN = 1;                                     // the two tabs
-    static final int SEARCHING = 0, CONNECTING = 1, CONNECTED = 2, NOT_FOUND = 3;   // state of the join tab
+    static final int SEARCHING = 0, CONNECTING = 1, CONNECTED = 2;       // where we are on the way to the arena
 
     private final QuizClient app;
     private final long born = System.currentTimeMillis();     // for the intro animation
 
     // ---- what the player has chosen ----
-    int mode = HOST;
-    int players = 2;               // seats in the room (host only)
-    int questions = 10;            // questions per game (host only)
     int myColor = 0;               // -1 = nothing chosen
+    boolean pickedColour = false;  // did the player click a colour (or only get the default one)?
 
-    // ---- the join tab ----
+    // ---- the connection to the server ----
     int joinState = SEARCHING;
     String serverIp = "";
     boolean[] taken = new boolean[QuizServer.NUMBER_OF_COLOURS];   // colours other players already use
     QuizClient.Room room = new QuizClient.Room();
 
-    boolean busy = false;          // waiting for the server's answer
+    boolean busy = false;          // waiting for the server's answer to our JOIN
     String error = null;
     long errorTime = 0;
 
     // ---- widgets ----
+<<<<<<< HEAD
     Ui.Button helpButton = new Ui.Button(880, 18, 200, 38, "HOW TO PLAY", Ui.COLORS[1]);
     static final int[] PLAYER_CHOICES = { 2, 3, 4 };
     static final int[] QUESTION_CHOICES = { 5, 10, 15 };
@@ -48,17 +47,17 @@ public class WelcomeScreen extends Screen {
     Ui.Button mainButton = new Ui.Button(375, 590, 350, 58, "CREATE ARENA", Ui.COLORS[2]);
     Ui.TextBox nameBox = new Ui.TextBox(420, 402, 300, 46, 12, "[A-Za-z0-9_ ]", "Your name");
     Ui.TextBox ipBox = new Ui.TextBox(420, 342, 250, 46, 15, "[0-9.]", "Host IP address");
+=======
+    Ui.Button connectButton = new Ui.Button(690, 272, 160, 46, "CONNECT", Ui.COLORS[1]);
+    Ui.Button mainButton = new Ui.Button(375, 590, 350, 58, "JOIN ARENA", Ui.COLORS[2]);
+    Ui.TextBox nameBox = new Ui.TextBox(420, 357, 300, 46, 12, "[A-Za-z0-9_ ]", "Your name");
+    Ui.TextBox ipBox = new Ui.TextBox(420, 272, 250, 46, 15, "[0-9.]", "or type the server's IP");
+>>>>>>> origin/dev-kamith
 
-    static final double SWATCH_Y = 502;
+    static final double SWATCH_Y = 485;
 
     WelcomeScreen(QuizClient app) {
         this.app = app;
-        for (int i = 0; i < 3; i++) {
-            playerButtons[i] = new Ui.Button(420 + i * 100, 282, 84, 46, "" + PLAYER_CHOICES[i], Ui.COLORS[1]);
-            questionButtons[i] = new Ui.Button(420 + i * 100, 342, 84, 46, "" + QUESTION_CHOICES[i], Ui.COLORS[4]);
-            playerButtons[i].fontSize = 24;
-            questionButtons[i].fontSize = 24;
-        }
         mainButton.fontSize = 19;
         nameBox.focused = true;
     }
@@ -72,30 +71,12 @@ public class WelcomeScreen extends Screen {
         drawTitle(g, now);
         helpButton.paint(g, now);
 
-        hostTab.enabled = (mode == HOST);
-        joinTab.enabled = (mode == JOIN);
-        hostTab.paint(g, now);
-        joinTab.paint(g, now);
+        Ui.glass(g, 150, 195, 800, 465, 30, null);
 
-        Ui.glass(g, 150, 245, 800, 425, 30, null);
+        label(g, "ARENA", 240);
+        drawStatus(g, now);
 
-        if (mode == HOST) {
-            label(g, "PLAYERS", 305);
-            label(g, "QUESTIONS", 365);
-            for (int i = 0; i < 3; i++) {
-                playerButtons[i].enabled = (players == PLAYER_CHOICES[i]);
-                questionButtons[i].enabled = (questions == QUESTION_CHOICES[i]);
-                playerButtons[i].paint(g, now);
-                questionButtons[i].paint(g, now);
-            }
-            Ui.textLeft(g, "seats in the arena", 740, 305, Ui.font(Font.PLAIN, 17), Ui.DIM);
-            Ui.textLeft(g, "per game", 740, 365, Ui.font(Font.PLAIN, 17), Ui.DIM);
-        } else {
-            label(g, "GAME", 305);
-            drawJoinStatus(g, now);
-        }
-
-        label(g, "YOUR NAME", 425);
+        label(g, "YOUR NAME", 380);
         nameBox.paint(g, now);
 
         label(g, "YOUR COLOUR", SWATCH_Y);
@@ -108,15 +89,10 @@ public class WelcomeScreen extends Screen {
             else Ui.text(g, error, Ui.W / 2.0, 568, Ui.font(Font.BOLD, 16), Ui.alpha(Ui.BAD, (int) (255 * fade)));
         }
 
-        // the big green button
-        if (mode == HOST) {
-            mainButton.label = busy ? "STARTING..." : "CREATE ARENA";
-            mainButton.enabled = !busy && myColor >= 0;
-        } else {
-            mainButton.label = busy ? "JOINING..." : "JOIN ARENA";
-            mainButton.enabled = !busy && joinState == CONNECTED && myColor >= 0
-                    && !room.started && room.players.size() < room.max;
-        }
+        // the big green button: only usable when we are connected to an arena that still has a free seat
+        mainButton.label = busy ? "JOINING..." : "JOIN ARENA";
+        mainButton.enabled = !busy && joinState == CONNECTED && myColor >= 0
+                && !room.started && room.players.size() < room.max;
         mainButton.paint(g, now);
     }
 
@@ -161,47 +137,51 @@ public class WelcomeScreen extends Screen {
         Ui.spacedLeft(g, text, 190, cy, Ui.font(Font.BOLD, 13), Ui.DIM, 2.5);
     }
 
-    /** The "GAME" row of the join tab: searching... / connected / type the IP. */
-    private void drawJoinStatus(Graphics2D g, long now) {
-        double cy = 305;
+    /** The "ARENA" rows: searching / connecting / connected (with the players already inside). */
+    private void drawStatus(Graphics2D g, long now) {
+        double cy = 240;
         Font f = Ui.font(Font.BOLD, 18);
-        switch (joinState) {
-            case SEARCHING:
-            case CONNECTING:
-                g.setStroke(new BasicStroke(2f));
-                g.setColor(Ui.alpha(Color.WHITE, 40));
-                g.draw(Ui.circle(436, cy, 13));
-                g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g.setColor(Ui.COLORS[1]);
-                g.draw(new Arc2D.Double(423, cy - 13, 26, 26, -(now / 3 % 360), 90, Arc2D.OPEN));   // a thin spinner
-                String dots = "...".substring(0, (int) (now / 400 % 4));
-                Ui.textLeft(g, joinState == SEARCHING ? "Searching your network for a game" + dots
-                                                      : "Connecting to " + serverIp + dots, 468, cy, f, Ui.TEXT);
-                break;
-            case CONNECTED:
-                double pulse = (now / 1600.0) % 1.0;                                 // a ring that expands from the green dot
-                g.setStroke(new BasicStroke(1.5f));
-                g.setColor(Ui.alpha(Ui.GOOD, (int) (150 * (1 - pulse))));
-                g.draw(Ui.circle(436, cy, 6 + pulse * 12));
-                g.setColor(Ui.GOOD);
-                g.fill(Ui.circle(436, cy, 6));
-                String info = room.started ? "Game already running - you cannot join"
-                        : "Connected to " + serverIp + "  -  " + room.players.size() + " of " + room.max + " seats taken";
-                Ui.textLeft(g, info, 468, cy, f, Ui.TEXT);
-                // the players who are already sitting in the room
-                for (int i = 0; i < room.players.size(); i++) {
-                    QuizClient.PlayerInfo p = room.players.get(i);
-                    double px = 436 + i * 130;
-                    g.setColor(Ui.COLORS[p.color]);
-                    g.fill(Ui.circle(px, 365, 8));
-                    Ui.textLeft(g, p.name, px + 18, 365, Ui.font(Font.PLAIN, 16), Ui.DIM);
-                }
-                break;
-            default:   // NOT_FOUND
-                Ui.textLeft(g, "No game found automatically - type the host's IP address:", 420, cy, f, Ui.TEXT);
-                ipBox.paint(g, now);
-                connectButton.paint(g, now);
+        if (joinState == CONNECTED) {
+            double pulse = (now / 1600.0) % 1.0;                                 // a ring that expands from the green dot
+            g.setStroke(new BasicStroke(1.5f));
+            g.setColor(Ui.alpha(Ui.GOOD, (int) (150 * (1 - pulse))));
+            g.draw(Ui.circle(436, cy, 6 + pulse * 12));
+            g.setColor(Ui.GOOD);
+            g.fill(Ui.circle(436, cy, 6));
+            String info;
+            if (room.started) info = "A game is already running - wait for the next arena";
+            else if (room.players.size() >= room.max) info = "This arena is full";
+            else info = "Arena found at " + serverIp + "  -  " + room.players.size() + " of " + room.max + " seats taken";
+            Ui.textLeft(g, info, 468, cy, f, Ui.TEXT);
+
+            // the players who are already sitting in the arena
+            if (room.players.isEmpty()) {
+                Ui.textLeft(g, "Nobody has joined yet - you can be the first.", 420, 295, Ui.font(Font.PLAIN, 16), Ui.DIM);
+            }
+            for (int i = 0; i < room.players.size(); i++) {
+                QuizClient.PlayerInfo p = room.players.get(i);
+                double px = 436 + i * 130;
+                g.setColor(Ui.COLORS[p.color]);
+                g.fill(Ui.circle(px, 295, 8));
+                Ui.textLeft(g, p.name, px + 18, 295, Ui.font(Font.PLAIN, 16), Ui.DIM);
+            }
+            return;
         }
+
+        // not connected yet: a thin spinner and the manual IP row
+        g.setStroke(new BasicStroke(2f));
+        g.setColor(Ui.alpha(Color.WHITE, 40));
+        g.draw(Ui.circle(436, cy, 13));
+        g.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(Ui.COLORS[1]);
+        g.draw(new Arc2D.Double(423, cy - 13, 26, 26, -(now / 3 % 360), 90, Arc2D.OPEN));
+        String dots = "...".substring(0, (int) (now / 400 % 4));
+        Ui.textLeft(g, joinState == SEARCHING ? "Waiting for the server to open an arena" + dots
+                                              : "Connecting to " + serverIp + dots, 468, cy, f, Ui.TEXT);
+        ipBox.paint(g, now);
+        connectButton.paint(g, now);
+        Ui.textLeft(g, "Start start_server.bat on the host computer. This page finds the arena by itself.",
+                420, 336, Ui.font(Font.PLAIN, 13), Ui.DIM);
     }
 
     private double swatchX(int i) {
@@ -240,48 +220,44 @@ public class WelcomeScreen extends Screen {
     // ------------------------------------------------------------------
     @Override
     void mouseMoved(double x, double y) {
+<<<<<<< HEAD
         helpButton.hover = helpButton.contains(x, y);
         hostTab.hover = hostTab.contains(x, y);
         joinTab.hover = joinTab.contains(x, y);
+=======
+>>>>>>> origin/dev-kamith
         mainButton.hover = mainButton.contains(x, y);
         connectButton.hover = connectButton.contains(x, y);
-        for (int i = 0; i < 3; i++) {
-            playerButtons[i].hover = playerButtons[i].contains(x, y);
-            questionButtons[i].hover = questionButtons[i].contains(x, y);
-        }
     }
 
     @Override
     void mousePressed(double x, double y) {
+<<<<<<< HEAD
         if (helpButton.contains(x, y)) { HowToPlay.show(app); return; }
         if (hostTab.contains(x, y)) { setMode(HOST); return; }
         if (joinTab.contains(x, y)) { setMode(JOIN); return; }
+=======
+>>>>>>> origin/dev-kamith
         if (busy) return;
 
-        boolean ipVisible = (mode == JOIN && joinState == NOT_FOUND);
+        boolean ipVisible = (joinState != CONNECTED);
         nameBox.focused = nameBox.contains(x, y);
         ipBox.focused = ipVisible && ipBox.contains(x, y);
 
-        if (mode == HOST) {
-            for (int i = 0; i < 3; i++) {
-                if (playerButtons[i].contains(x, y)) players = PLAYER_CHOICES[i];
-                if (questionButtons[i].contains(x, y)) questions = QUESTION_CHOICES[i];
-            }
-        }
         for (int i = 0; i < QuizServer.NUMBER_OF_COLOURS; i++) {
             if (Math.hypot(x - swatchX(i), y - SWATCH_Y) <= 32) pickColour(i);
         }
         if (ipVisible && connectButton.contains(x, y)) connectManually();
-        if (mainButton.enabled && mainButton.contains(x, y)) doMainAction();
+        if (mainButton.enabled && mainButton.contains(x, y)) join();
     }
 
     @Override
     void keyTyped(char c) {
+        boolean ipVisible = (joinState != CONNECTED);
         if (c == '\n' || c == '\r') {
-            if (mode == JOIN && joinState == NOT_FOUND && ipBox.focused) connectManually();
-            else if (mainButton.enabled) doMainAction();
+            if (ipVisible && ipBox.focused) connectManually();
+            else if (mainButton.enabled) join();
         } else if (c == '\t') {
-            boolean ipVisible = (mode == JOIN && joinState == NOT_FOUND);
             if (ipVisible) { ipBox.focused = nameBox.focused; nameBox.focused = !ipBox.focused; }
         } else if (nameBox.focused) {
             nameBox.type(c);
@@ -293,38 +269,27 @@ public class WelcomeScreen extends Screen {
     // ------------------------------------------------------------------
     // Actions
     // ------------------------------------------------------------------
-    private void setMode(int newMode) {
-        if (mode == newMode || busy) return;
-        mode = newMode;
-        error = null;
-        resetRoom();
-        app.closeConnection();
-        if (mode == JOIN) {
-            joinState = SEARCHING;
-            app.searchForServer();          // UDP broadcast: "is anybody hosting a quiz?"
-        }
-    }
-
     private void pickColour(int i) {
         if (taken[i]) showError("The " + Ui.COLOR_NAMES[i].toLowerCase() + " colour is already taken.");
-        else myColor = i;
+        else { myColor = i; pickedColour = true; }
     }
 
+    /** The player typed the server's IP address instead of waiting for the automatic search. */
     private void connectManually() {
         String ip = ipBox.value();
-        if (ip.isEmpty()) { showError("Type the host's IP address first."); return; }
+        if (ip.isEmpty()) { showError("Type the server's IP address first."); return; }
         serverIp = ip;
         joinState = CONNECTING;
         app.connectTo(ip);
     }
 
-    private void doMainAction() {
+    /** The big button: ask the server for a seat. The answer comes back as JOINED or JOINFAIL. */
+    private void join() {
         String name = nameBox.value();
         if (name.isEmpty()) name = "Player";
         busy = true;
         error = null;
-        if (mode == HOST) app.hostGame(name, myColor, players, questions);
-        else app.joinRoom(name, myColor);
+        app.joinRoom(name, myColor);
     }
 
     private void resetRoom() {
@@ -337,12 +302,14 @@ public class WelcomeScreen extends Screen {
         errorTime = System.currentTimeMillis();
     }
 
-    /** Called when the player comes back to this page after a game. */
+    /** Called at the start of the program and whenever the player comes back to this page: start searching again. */
     void reset() {
-        mode = HOST;
         busy = false;
         error = null;
         resetRoom();
+        joinState = SEARCHING;
+        app.closeConnection();
+        app.searchForServer();               // UDP broadcast: "is a quiz server running?"
     }
 
     // ------------------------------------------------------------------
@@ -351,11 +318,9 @@ public class WelcomeScreen extends Screen {
 
     /** The UDP search is over: ip is the server's address, or null if nobody answered. */
     void onSearchResult(String ip) {
-        if (mode != JOIN || joinState != SEARCHING) return;
+        if (joinState != SEARCHING) return;
         if (ip == null) {
-            joinState = NOT_FOUND;
-            nameBox.focused = false;
-            ipBox.focused = true;
+            app.searchForServer();           // nobody yet - keep looking, the server may be started any moment
         } else {
             serverIp = ip;
             joinState = CONNECTING;
@@ -364,22 +329,22 @@ public class WelcomeScreen extends Screen {
     }
 
     void onConnected() {
-        if (mode == JOIN) joinState = CONNECTED;
+        joinState = CONNECTED;
     }
 
-    /** The server tells us who sits in the room: update the "taken" colours live. */
+    /** The server tells us who sits in the arena: update the "taken" colours live. */
     void onRoom(QuizClient.Room newRoom) {
         room = newRoom;
         taken = new boolean[QuizServer.NUMBER_OF_COLOURS];
         for (QuizClient.PlayerInfo p : room.players) {
             if (p.color >= 0 && p.color < taken.length) taken[p.color] = true;
         }
-        if (mode == JOIN && myColor >= 0 && taken[myColor]) {            // somebody just took "my" colour
-            showError("Somebody just took the " + Ui.COLOR_NAMES[myColor].toLowerCase() + " colour - pick another one.");
+        if (myColor >= 0 && taken[myColor]) {                            // somebody took "my" colour
+            if (pickedColour) showError("Somebody just took the " + Ui.COLOR_NAMES[myColor].toLowerCase() + " colour - pick another one.");
             myColor = -1;
-            for (int i = 0; i < taken.length && myColor < 0; i++) if (!taken[i]) myColor = i;
+            pickedColour = false;
         }
-        if (mode == JOIN && myColor < 0) {                               // choose the first free colour for the player
+        if (myColor < 0) {                                               // choose the first free colour for the player
             for (int i = 0; i < taken.length && myColor < 0; i++) if (!taken[i]) myColor = i;
         }
     }
@@ -389,14 +354,12 @@ public class WelcomeScreen extends Screen {
         showError(reason);
     }
 
+    /** The connection was lost (or could not be made): go back to searching. */
     void onDisconnected(String reason) {
         busy = false;
         showError(reason);
-        if (mode == JOIN) {
-            joinState = NOT_FOUND;
-            ipBox.focused = true;
-            nameBox.focused = false;
-            resetRoom();
-        }
+        resetRoom();
+        joinState = SEARCHING;
+        app.searchForServer();
     }
 }

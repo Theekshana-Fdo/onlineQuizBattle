@@ -11,17 +11,21 @@ scores count up. The questions are about **this very course**
 
 ## How to run (Windows)
 
-1. Everybody double-clicks **`start_client.bat`** (it compiles first, so there is no separate compile step).
-2. **Host:** on the welcome page choose *Host a game*, pick the number of players (2 - 4) and questions,
-   type your name, pick your colour and press **CREATE ARENA**.
-3. **Friends** (same Wi-Fi / LAN): choose *Join a game*. The game is found automatically - type your name,
-   pick a colour that is still free and press **JOIN ARENA**.
-   (If nothing is found, type the host's IP address. It is shown at the top of the host's lobby.)
-4. The game starts by itself when all seats are taken. The host can also press **START NOW** earlier (minimum 2 players).
+The **server creates the arena**, the **clients only join** it.
 
-You need a JDK (Java 8 or newer). By hand: `javac -d out *.java`, then `java -cp out QuizClient`.
-You can test on ONE computer: start the game several times (each window is one player) - the first one hosts,
-the others join.
+1. **Server (one computer):** double-click **`start_server.bat`**. It compiles the game, then asks three questions:
+   number of players (2 - 4), number of questions and seconds per question. Press Enter to accept the suggestion.
+   The arena is open when the window says "Arena 1 is open". Keep this window open.
+2. **Players (every computer, including the server's if that person plays too):** double-click **`start_client.bat`**.
+   The game window searches the network and finds the arena by itself (it does not matter whether you start it
+   before or after the server). Type your name, pick a colour that is still free and press **JOIN ARENA**.
+   (If nothing is found, type the server's IP address - the server window prints it.)
+3. The game starts when all seats are taken. The first player who joined can also press **START NOW** earlier (minimum 2 players).
+4. After the game, players press **BACK TO MENU**. The server opens a fresh arena after a few seconds,
+   so you can play again without restarting anything.
+
+You need a JDK (Java 8 or newer). By hand: `javac -d out *.java`, then `java -cp out QuizServer` and `java -cp out QuizClient`.
+You can test on ONE computer: start the server, then start the client two or more times (each window is one player).
 
 ## How to play
 
@@ -53,10 +57,10 @@ Open `questions.txt` - one question per line, no Java needed:
 | Lecture topic | Where in the code |
 |---|---|
 | **TCP sockets**: `ServerSocket`, `accept()`, `Socket`, `PrintWriter`, `BufferedReader` | `QuizServer` (accept thread), `PlayerHandler`, `GameConnection` - all game traffic |
-| **UDP**: `DatagramSocket`, `DatagramPacket` | `Discovery` - the joining player broadcasts "QUIZ_DISCOVER", the host replies, so nobody types an IP |
+| **UDP**: `DatagramSocket`, `DatagramPacket` | `Discovery` - the joining player broadcasts "QUIZ_DISCOVER", the server replies, so nobody types an IP |
 | **Threads**: `Runnable`, `start()`, `run()` | one `PlayerHandler` thread per player; accept thread; game thread; UDP thread; the client's listener thread (`GameConnection`) |
 | **Concurrency / shared data** | `synchronized (QuizServer.lock)` protects the player list, colours, answers and scores |
-| **Client-server architecture** | the host's program contains the server; it holds the game state, every client only draws what it is told and sends answers |
+| **Client-server architecture** | the server holds the game state; every client only draws what it is told and sends answers |
 
 Why TCP for the game but UDP for discovery? The game needs every message to arrive, in order (TCP).
 Discovery is one tiny "is anybody there?" message where speed matters and a lost packet does not (UDP).
@@ -69,7 +73,7 @@ changes the screen itself - it hands each message over with `SwingUtilities.invo
 ```
 Client -> Server
   JOIN|name|colour             take a seat (colour = 0..5)
-  START                        start now (only the first player who joined = the host)
+  START                        start now (only the first player who joined = the leader)
   ANSWER|number|letter         answer question <number> with A, B, C or D
   LIFELINE|number              use the 50/50 lifeline
 
@@ -99,19 +103,20 @@ Time is measured on the server's clock, so nobody can fake a fast answer.
 | `ArenaScreen.java` | the stadium: players, question, answer cards, reveal animations, podium |
 | `Ui.java`, `Screen.java` | drawing helpers (colours, glass panels, spaced text, buttons, easing) and the base class of a page |
 | `GameConnection.java` | the client's TCP link and its listener thread |
-| `QuizServer.java` | the server: lobby, accept thread, game loop, scoring, colour rules |
+| `QuizServer.java` | the server: creates the arena, lobby, accept thread, game loop, scoring, colour rules |
 | `PlayerHandler.java` | one thread per player: reads that player's messages, keeps their score |
 | `Discovery.java` | UDP server discovery (both sides) |
 | `QuestionBank.java`, `questions.txt` | reads and holds the questions |
-| `start_client.bat` | double-click to play (host or join) |
-| `start_server.bat` | optional: a server without a window for playing; normally not needed |
+| `start_server.bat` | double-click first: creates the arena (asks players / questions / seconds) |
+| `start_client.bat` | double-click to play: joins the arena |
 
 ## Troubleshooting
 
 - **"Java JDK not found"** - install a JDK (e.g. Eclipse Temurin 21 from adoptium.net) and tick *Add to PATH* in the installer.
   The launcher already searches Android Studio's built-in JDK and the usual install folders by itself.
-- **Windows Firewall asks about Java** - click *Allow access* (private networks). The host needs this so friends can connect.
-- **"No game found"** - some networks (campus Wi-Fi, VPN on) block broadcasts. Type the host's IP address
-  (shown in the host's lobby), or use a phone hotspot / turn the VPN off.
-- **"Port 5000 is busy"** - another game or server is already running on this computer; close it first.
+- **Windows Firewall asks about Java** - click *Allow access* (private networks). The server computer needs this so the others can connect.
+- **The join page keeps saying "Waiting for the server..."** - is `start_server.bat` running and showing "Arena is open"?
+  Some networks (campus Wi-Fi, VPN on) block the automatic search: type the server's IP address
+  (printed in the server window) or use a phone hotspot / turn the VPN off.
+- **"Port 5000 is already in use"** (server window) - another server is already running on this computer; close it first.
 - **The window is too big for a small screen** - it scales to fit; you can also resize it freely.
