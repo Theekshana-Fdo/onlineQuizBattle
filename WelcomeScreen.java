@@ -167,7 +167,7 @@ public class WelcomeScreen extends Screen {
                                               : "Connecting to " + serverIp + dots, 468, cy, f, Ui.TEXT);
         ipBox.paint(g, now);
         connectButton.paint(g, now);
-        Ui.textLeft(g, "Start start_server.bat on the host computer. This page finds the arena by itself.",
+        Ui.textLeft(g, "Nothing found? Same Wi-Fi as the server? Type its IP address here.",
                 420, 336, Ui.font(Font.PLAIN, 13), Ui.DIM);
     }
 

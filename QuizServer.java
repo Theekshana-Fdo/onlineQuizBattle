@@ -263,7 +263,8 @@ public class QuizServer {
             for (NetworkInterface card : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 for (InetAddress address : Collections.list(card.getInetAddresses())) {
                     if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
-                        result.add(address.getHostAddress());
+                        // the card's name tells the player which address is the Wi-Fi one (e.g. "Wireless LAN adapter")
+                        result.add(address.getHostAddress() + "     (" + card.getDisplayName() + ")");
                     }
                 }
             }
@@ -296,7 +297,7 @@ public class QuizServer {
 
             System.out.println("\nArena " + arenaNumber + " is open for " + players + " players, " + questions + (questions == 1 ? " question." : " questions."));
             System.out.println("Players start start_client.bat - they find this arena by themselves.");
-            System.out.println("If a network blocks the search, they can type one of these addresses:");
+            System.out.println("If a network blocks the search, they type the address of the Wi-Fi card (same first 3 numbers as theirs):");
             for (String address : localAddresses()) System.out.println("   " + address);
             System.out.println("The game starts when all " + players + " seats are taken (or the first player clicks START NOW).");
 

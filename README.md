@@ -24,6 +24,9 @@ The **server creates the arena**, the **clients only join** it.
 4. After the game, players press **BACK TO MENU**. The server opens a fresh arena after a few seconds,
    so you can play again without restarting anything.
 
+**Two (or more) computers:** run the server on one computer and the client on the others; all on the same Wi-Fi.
+Copy the whole project folder to each computer. If the join page does not find the arena, see *Troubleshooting* below.
+
 You need a JDK (Java 8 or newer). By hand: `javac -d out *.java`, then `java -cp out QuizServer` and `java -cp out QuizClient`.
 You can test on ONE computer: start the server, then start the client two or more times (each window is one player).
 
@@ -109,14 +112,20 @@ Time is measured on the server's clock, so nobody can fake a fast answer.
 | `QuestionBank.java`, `questions.txt` | reads and holds the questions |
 | `start_server.bat` | double-click first: creates the arena (asks players / questions / seconds) |
 | `start_client.bat` | double-click to play: joins the arena |
+| `open_firewall.bat` | optional, run once as administrator on the server computer: lets other computers reach the game |
 
 ## Troubleshooting
 
 - **"Java JDK not found"** - install a JDK (e.g. Eclipse Temurin 21 from adoptium.net) and tick *Add to PATH* in the installer.
   The launcher already searches Android Studio's built-in JDK and the usual install folders by itself.
-- **Windows Firewall asks about Java** - click *Allow access* (private networks). The server computer needs this so the others can connect.
-- **The join page keeps saying "Waiting for the server..."** - is `start_server.bat` running and showing "Arena is open"?
-  Some networks (campus Wi-Fi, VPN on) block the automatic search: type the server's IP address
-  (printed in the server window) or use a phone hotspot / turn the VPN off.
+- **Windows Firewall asks about Java** - click *Allow access* and tick *Private networks*. The SERVER computer needs this so the others can connect.
+  If you clicked Cancel by mistake: right-click **`open_firewall.bat`** on the server computer -> *Run as administrator* (once).
+- **The join page keeps saying "Waiting for the server..."** - work through this list:
+  1. Is `start_server.bat` running and showing "Arena 1 is open"?
+  2. Are BOTH computers on the SAME Wi-Fi / network? (A phone hotspot is the safest; campus or guest Wi-Fi often blocks computers from seeing each other.)
+  3. Turn any VPN off on both computers.
+  4. Type the server's IP address in the box on the join page and click **CONNECT**. The server window prints its addresses -
+     take the one whose first three numbers match your own computer's address (`ipconfig` in a command window, "IPv4 Address").
+  5. Still nothing: run `open_firewall.bat` as administrator on the server computer.
 - **"Port 5000 is already in use"** (server window) - another server is already running on this computer; close it first.
 - **The window is too big for a small screen** - it scales to fit; you can also resize it freely.

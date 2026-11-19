@@ -70,6 +70,7 @@ public class Discovery {
             byte[] data = REQUEST.getBytes();
             sendTo(socket, data, "127.0.0.1");         // a server on THIS computer
             sendTo(socket, data, "255.255.255.255");   // a server anywhere on the local network
+            sendToEveryNetwork(socket, data);          // ...and once on EACH network card (see below)
 
             DatagramPacket reply = new DatagramPacket(new byte[256], 256);
             socket.receive(reply);           // throws SocketTimeoutException if nobody answers
@@ -82,6 +83,25 @@ public class Discovery {
             // timeout or network problem: fall through and report "not found"
         }
         return null;
+    }
+
+    /**
+     * On Windows the address 255.255.255.255 often leaves through only ONE network card - and that can be the
+     * wrong one (a VPN, VirtualBox, a phone-hotspot adapter ...). So we also send the datagram to the
+     * broadcast address of EVERY network card (for example 192.168.1.255). One of them is the Wi-Fi of the server.
+     */
+    private static void sendToEveryNetwork(DatagramSocket socket, byte[] data) {
+        try {
+            for (NetworkInterface card : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (!card.isUp() || card.isLoopback()) continue;            // only cards that are working
+                for (InterfaceAddress address : card.getInterfaceAddresses()) {
+                    InetAddress broadcast = address.getBroadcast();         // null for IPv6 cards
+                    if (broadcast != null) sendTo(socket, data, broadcast.getHostAddress());
+                }
+            }
+        } catch (SocketException e) {
+            // cannot list the network cards - the two sends above may still work
+        }
     }
 
     /** Sends one datagram to one address. Problems are ignored (the other address may still work). */
