@@ -30,7 +30,7 @@ You can test on ONE computer: start the server, then start the client two or mor
 ## How to play
 
 Click **HOW TO PLAY** in the top-right corner of the welcome page for an in-app
-guide to hosting, joining, controls, the lifeline and scoring. Scroll to read the
+guide to joining, controls, the lifeline and scoring. Scroll to read the
 guide and close it with **OK** or **Esc**; your menu selections are kept.
 
 | Action | What happens |
@@ -97,8 +97,8 @@ Time is measured on the server's clock, so nobody can fake a fast answer.
 
 | File | Job |
 |---|---|
-| `QuizClient.java` | the game window; connects to the server; can start a server inside itself (hosting) |
-| `WelcomeScreen.java` | welcome page: host / join, number of players, name, colour picker |
+| `QuizClient.java` | the game window; connects to the server and passes its messages to the screens |
+| `WelcomeScreen.java` | welcome page: finds the arena, name, colour picker, JOIN ARENA |
 | `HowToPlay.java` | read-only, scrollable playing guide opened from the welcome page |
 | `ArenaScreen.java` | the stadium: players, question, answer cards, reveal animations, podium |
 | `Ui.java`, `Screen.java` | drawing helpers (colours, glass panels, spaced text, buttons, easing) and the base class of a page |

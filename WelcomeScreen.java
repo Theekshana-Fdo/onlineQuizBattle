@@ -35,24 +35,11 @@ public class WelcomeScreen extends Screen {
     long errorTime = 0;
 
     // ---- widgets ----
-<<<<<<< HEAD
-    Ui.Button helpButton = new Ui.Button(880, 18, 200, 38, "HOW TO PLAY", Ui.COLORS[1]);
-    static final int[] PLAYER_CHOICES = { 2, 3, 4 };
-    static final int[] QUESTION_CHOICES = { 5, 10, 15 };
-    Ui.Button hostTab = new Ui.Button(325, 172, 220, 52, "HOST A GAME", Ui.COLORS[1]);
-    Ui.Button joinTab = new Ui.Button(555, 172, 220, 52, "JOIN A GAME", Ui.COLORS[4]);
-    Ui.Button[] playerButtons = new Ui.Button[3];
-    Ui.Button[] questionButtons = new Ui.Button[3];
-    Ui.Button connectButton = new Ui.Button(690, 342, 160, 46, "CONNECT", Ui.COLORS[1]);
-    Ui.Button mainButton = new Ui.Button(375, 590, 350, 58, "CREATE ARENA", Ui.COLORS[2]);
-    Ui.TextBox nameBox = new Ui.TextBox(420, 402, 300, 46, 12, "[A-Za-z0-9_ ]", "Your name");
-    Ui.TextBox ipBox = new Ui.TextBox(420, 342, 250, 46, 15, "[0-9.]", "Host IP address");
-=======
+    Ui.Button helpButton = new Ui.Button(880, 18, 200, 38, "HOW TO PLAY", Ui.COLORS[1]);   // opens the playing guide (HowToPlay.java)
     Ui.Button connectButton = new Ui.Button(690, 272, 160, 46, "CONNECT", Ui.COLORS[1]);
     Ui.Button mainButton = new Ui.Button(375, 590, 350, 58, "JOIN ARENA", Ui.COLORS[2]);
     Ui.TextBox nameBox = new Ui.TextBox(420, 357, 300, 46, 12, "[A-Za-z0-9_ ]", "Your name");
     Ui.TextBox ipBox = new Ui.TextBox(420, 272, 250, 46, 15, "[0-9.]", "or type the server's IP");
->>>>>>> origin/dev-kamith
 
     static final double SWATCH_Y = 485;
 
@@ -220,24 +207,14 @@ public class WelcomeScreen extends Screen {
     // ------------------------------------------------------------------
     @Override
     void mouseMoved(double x, double y) {
-<<<<<<< HEAD
         helpButton.hover = helpButton.contains(x, y);
-        hostTab.hover = hostTab.contains(x, y);
-        joinTab.hover = joinTab.contains(x, y);
-=======
->>>>>>> origin/dev-kamith
         mainButton.hover = mainButton.contains(x, y);
         connectButton.hover = connectButton.contains(x, y);
     }
 
     @Override
     void mousePressed(double x, double y) {
-<<<<<<< HEAD
-        if (helpButton.contains(x, y)) { HowToPlay.show(app); return; }
-        if (hostTab.contains(x, y)) { setMode(HOST); return; }
-        if (joinTab.contains(x, y)) { setMode(JOIN); return; }
-=======
->>>>>>> origin/dev-kamith
+        if (helpButton.contains(x, y)) { HowToPlay.show(app); return; }     // the guide only reads - it changes nothing
         if (busy) return;
 
         boolean ipVisible = (joinState != CONNECTED);

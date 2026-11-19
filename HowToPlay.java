@@ -11,13 +11,14 @@ final class HowToPlay {
     static void show(Component parent) {
         JTextArea guide = new JTextArea(
                 "GET INTO THE ARENA\n\n"
-                + "Host: choose 2-4 players and the number of questions, enter your name, "
-                + "pick a colour and click CREATE ARENA.\n\n"
-                + "Join: use the same Wi-Fi / LAN as the host and choose JOIN A GAME. "
-                + "If discovery finds no game, enter the host's IP address from their lobby. "
+                + "The arena is created by the SERVER computer: start_server.bat asks for the number "
+                + "of players, questions and seconds per question.\n\n"
+                + "Join: on your own computer start start_client.bat (same Wi-Fi / LAN as the server). "
+                + "The game finds the arena by itself. If nothing is found, type the server's IP address "
+                + "(it is printed in the server window) and click CONNECT. "
                 + "Pick a free colour, enter your name and click JOIN ARENA.\n\n"
-                + "The game starts when all seats fill. The host can also click START NOW "
-                + "with at least two players.\n\n"
+                + "The game starts when all seats fill. The first player who joined can also click "
+                + "START NOW with at least two players.\n\n"
                 + "ANSWERING\n\n"
                 + "Click an answer, or press A, B, C, D (or 1, 2, 3, 4). "
                 + "Your first answer is final. Other players see that you answered, "
@@ -27,7 +28,8 @@ final class HowToPlay {
                 + "A correct answer earns 100 points, plus up to 50 for speed. "
                 + "Each preceding correct answer in your current streak adds 10 more "
                 + "(up to 50). Wrong or missed answers earn 0 and reset your streak.\n\n"
-                + "After the final question, see the podium and click BACK TO MENU to play again.",
+                + "After the final question, see the podium and click BACK TO MENU. "
+                + "The server opens a fresh arena for the next game.",
                 18, 46);
         guide.setEditable(false);
         guide.setLineWrap(true);
