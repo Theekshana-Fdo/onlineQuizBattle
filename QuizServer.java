@@ -6,9 +6,8 @@ import java.util.*;
  * QUIZ BATTLE - SERVER
  * EC5205 Operating Systems & Network Programming project
  *
- * A QuizServer is ONE game room for 2 to 4 players. It can run
- *   - inside the game window (the player who clicks "HOST A GAME"), or
- *   - on its own in a console:  java QuizServer
+ * A QuizServer is ONE game room (arena) for 2 to 4 players. The arena is created here, on its own
+ * in a console window (start_server.bat  =  java QuizServer); the game windows (QuizClient) only join it.
  *
  * What the server does:
  *   1. Answers UDP "is anybody there?" requests so clients can find it     (Discovery.java)
@@ -275,34 +274,54 @@ public class QuizServer {
     }
 
     // ------------------------------------------------------------------
-    // Console version:  java QuizServer
+    // The program you start with start_server.bat:   java QuizServer
+    // It creates the arena. Players join it with start_client.bat.
+    // After a game it opens a fresh arena with the same settings, so everybody can play again.
     // ------------------------------------------------------------------
     public static void main(String[] args) throws Exception {
         BufferedReader keyboard = new BufferedReader(new InputStreamReader(System.in));
 
         System.out.println("==================================================");
-        System.out.println("   QUIZ BATTLE  -  SERVER");
+        System.out.println("   QUIZ BATTLE  -  SERVER  (creates the arena)");
         System.out.println("==================================================");
         int players = askNumber(keyboard, "Number of players (2-4)", 2, 2, 4);
         int questions = askNumber(keyboard, "Questions per game", 10, 1, 50);
         int seconds = askNumber(keyboard, "Seconds per question", 15, 5, 60);
 
-        QuizServer server = new QuizServer(players, questions, seconds);
-        try {
-            server.start();
-        } catch (BindException e) {
-            System.out.println("Port " + TCP_PORT + " is already in use. Is another server running?");
-            return;
-        } catch (IOException e) {
-            System.out.println("Could not start: " + e.getMessage());
-            return;
-        }
+        int arenaNumber = 1;
+        while (true) {
+            QuizServer server = new QuizServer(players, questions, seconds);
+            // the first arena must open at once; later ones may have to wait a moment until the old port is free
+            if (!openArena(server, arenaNumber == 1 ? 1 : 5)) return;
 
-        System.out.println("\nServer is running for " + players + " players. Players can join using one of these addresses");
-        System.out.println("(clients on the same network also find the server automatically):");
-        for (String address : localAddresses()) System.out.println("   " + address + "   (port " + TCP_PORT + ")");
-        System.out.println("\nThe game starts when all " + players + " seats are taken (or the first player clicks START).");
-        server.waitForEnd();
+            System.out.println("\nArena " + arenaNumber + " is open for " + players + " players, " + questions + (questions == 1 ? " question." : " questions."));
+            System.out.println("Players start start_client.bat - they find this arena by themselves.");
+            System.out.println("If a network blocks the search, they can type one of these addresses:");
+            for (String address : localAddresses()) System.out.println("   " + address);
+            System.out.println("The game starts when all " + players + " seats are taken (or the first player clicks START NOW).");
+
+            server.waitForEnd();                                   // wait until this game is over
+            System.out.println("\nGame finished. A new arena opens in 5 seconds.  (Close this window to stop the server.)");
+            Thread.sleep(5000);
+            arenaNumber++;
+        }
+    }
+
+    /** Starts the server. If the port is still busy it tries again once per second. Returns false if it cannot start. */
+    private static boolean openArena(QuizServer server, int attempts) throws InterruptedException {
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                server.start();
+                return true;
+            } catch (BindException e) {
+                if (attempt < attempts) Thread.sleep(1000);
+            } catch (IOException e) {
+                System.out.println("Could not start: " + e.getMessage());
+                return false;
+            }
+        }
+        System.out.println("Port " + TCP_PORT + " is already in use. Is another server running?");
+        return false;
     }
 
     /** Asks for a number. Pressing Enter (or typing nonsense) gives the default. */

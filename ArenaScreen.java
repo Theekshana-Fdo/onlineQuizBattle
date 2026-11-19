@@ -87,7 +87,6 @@ public class ArenaScreen extends Screen {
     Ui.Button menuButton = new Ui.Button(400, 636, 300, 50, "BACK TO MENU", Ui.COLORS[1]);
 
     private Color accent = Ui.COLORS[4];         // slowly changes between violet and azure
-    private final String hostAddress;
 
     // gold dust that floats up on the podium screen
     private static final int DUST = 90;
@@ -98,10 +97,6 @@ public class ArenaScreen extends Screen {
         this.app = app;
         this.myName = myName;
         this.myColor = myColor;
-        // when we are the host, show our address so friends can type it if auto-discovery fails
-        String address = "";
-        if (app.server != null && !QuizServer.localAddresses().isEmpty()) address = QuizServer.localAddresses().get(0);
-        hostAddress = address;
         lifelineButton.fontSize = 14;
         startButton.fontSize = 18;
         menuButton.fontSize = 16;
@@ -388,9 +383,7 @@ public class ArenaScreen extends Screen {
             Ui.textBlock(c, fact, 500, y + 108, 780, factFont.getSize() + 3, factFont, Ui.GOLD, true);
         } else if (phase == LOBBY) {
             Ui.text(c, body, 500, y + 66, Ui.font(Font.BOLD, 30), Ui.TEXT);
-            String hint = app.server != null
-                    ? "Friends on your network find you automatically" + (hostAddress.isEmpty() ? "" : "   -   or they type  " + hostAddress)
-                    : "The game starts when all " + maxPlayers + " seats are taken.";
+            String hint = "The game starts when all " + maxPlayers + " seats are taken.";
             Ui.text(c, hint, 500, y + 106, Ui.font(Font.PLAIN, 16), Ui.DIM);
         } else {
             Font f = Ui.fitFont(c, body, 780, 2, Font.BOLD, 28, 25, 22, 19);
@@ -446,7 +439,7 @@ public class ArenaScreen extends Screen {
                 startButton.paint(g, now);
                 Ui.text(g, "or wait - it starts by itself when all seats are taken", CX, 466, Ui.font(Font.PLAIN, 14), Ui.DIM);
             } else {
-                String msg = seats.size() < 2 ? "At least 2 players are needed." : "The host can start the game at any moment.";
+                String msg = seats.size() < 2 ? "At least 2 players are needed." : "The first player can start the game at any moment.";
                 Ui.text(g, msg, CX, 400, Ui.font(Font.PLAIN, 16), Ui.DIM);
             }
         } else if (phase == COUNTDOWN) {
